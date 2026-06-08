@@ -76,6 +76,13 @@
             <span class="block text-sm text-zinc-500">send me to Claude</span>
           </span>
         </button>
+
+        <!-- Pet quick-log entry: vital + frequent, so it gets its own one-tap door -->
+        <button @click="screen='pet'"
+          class="w-full rounded-2xl border border-[#EF0107]/40 bg-[#EF0107]/10 hover:bg-[#EF0107]/20 active:scale-[.98] transition py-3.5 flex items-center justify-center gap-2 mt-1">
+          <span class="text-lg">🐾</span>
+          <span class="text-sm font-medium text-zinc-100" x-text="petName + ' — quick log'"></span>
+        </button>
       </div>
 
       <!-- ================= SCREEN 2: FORM ================= -->
@@ -161,7 +168,55 @@
         </button>
       </div>
 
-      <!-- ================= SCREEN 3: CLAUDE ================= -->
+      <!-- ================= SCREEN: PET QUICK-LOG ================= -->
+      <div x-show="screen === 'pet'" x-transition.opacity class="space-y-6">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xl font-semibold text-zinc-100" x-text="'🐾 ' + petName"></h2>
+          <button @click="screen='capacity'" class="text-sm text-zinc-500 hover:text-zinc-300 transition">← back</button>
+        </div>
+
+        <p class="text-sm text-zinc-500 -mt-2">Tap when it happens. Each one stamps the time.</p>
+
+        <!-- one-tap buttons -->
+        <div class="grid grid-cols-2 gap-3">
+          <template x-for="t in petTypes" :key="t.key">
+            <button @click="logPet(t)"
+              class="rounded-2xl border border-zinc-800 bg-zinc-900/60 hover:border-[#EF0107]/70 hover:bg-zinc-900 active:scale-95 transition py-5 flex flex-col items-center gap-1.5">
+              <span class="text-3xl" x-text="t.emoji"></span>
+              <span class="text-sm font-medium text-zinc-200" x-text="t.label"></span>
+            </button>
+          </template>
+        </div>
+
+        <!-- today's timeline -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-medium text-zinc-400">Today</h3>
+            <span class="text-xs text-zinc-600" x-text="todaysPet().length + ' logged'"></span>
+          </div>
+
+          <p x-show="todaysPet().length === 0" class="text-sm text-zinc-600 py-4 text-center">
+            Nothing logged yet today.
+          </p>
+
+          <template x-for="ev in todaysPet()" :key="ev.id">
+            <div class="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 flex items-start gap-3 pop">
+              <span class="text-xl" x-text="ev.emoji"></span>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between">
+                  <span class="text-sm font-medium text-zinc-200" x-text="ev.label"></span>
+                  <span class="text-xs text-zinc-500" x-text="petTime(ev.time)"></span>
+                </div>
+                <input x-model="ev.note" @change="savePetLog()" type="text" placeholder="add a note (optional)"
+                  class="mt-1 w-full bg-transparent text-sm text-zinc-300 placeholder-zinc-600 border-b border-transparent focus:border-zinc-700 outline-none transition" />
+              </div>
+              <button @click="deletePet(ev.id)" class="text-zinc-600 hover:text-[#EF0107] transition px-1" title="remove">✕</button>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- ================= SCREEN: CLAUDE ================= -->
       <div x-show="screen === 'claude'" x-transition.opacity class="space-y-5 text-center pop">
         <div class="text-5xl">🫧</div>
         <h2 class="text-2xl font-semibold text-zinc-100">It's okay. Take a breath.</h2>
@@ -178,7 +233,7 @@
         <button @click="screen='capacity'" class="text-sm text-zinc-500 hover:text-zinc-300 transition pt-2">Actually, I'll do a quick check-in</button>
       </div>
 
-      <!-- ================= SCREEN 4: DONE ================= -->
+      <!-- ================= SCREEN: DONE ================= -->
       <div x-show="screen === 'done'" x-transition.opacity class="space-y-4 text-center pop">
         <div class="text-6xl text-[#EF0107]">✓</div>
         <h2 class="text-3xl font-semibold text-zinc-100">Logged. Done.</h2>
@@ -199,6 +254,9 @@
         sheetUrl: '',
         // ▲▲▲ leave blank and it just saves in this browser ▲▲▲
 
+        // ▼ set your pet's name here ▼
+        petName: 'Pet',
+
         screen: 'capacity',
         capacity: null,
         energy: null,
@@ -210,6 +268,18 @@
         tomorrow: '',
         extras: '',
         copied: false,
+
+        // pet quick-log
+        petTypes: [
+          { key: 'food',  emoji: '🍽️', label: 'Fed' },
+          { key: 'treat', emoji: '🦴', label: 'Treat' },
+          { key: 'poop',  emoji: '💩', label: 'Poop' },
+          { key: 'meds',  emoji: '💊', label: 'Meds' },
+          { key: 'walk',  emoji: '🐕', label: 'Walk' },
+          { key: 'other', emoji: '📝', label: 'Note' }
+        ],
+        petEvents: JSON.parse(localStorage.getItem('petLog') || '[]'),
+
         escapePrompt:
 `I just hit my daily check-in form and couldn't or didn't want to fill it out.
 Here's where I'm at: [a sentence, or nothing if I can't].
@@ -257,24 +327,44 @@ saccharine. Treat me like a competent adult having a hard moment.`,
             tomorrow: this.tomorrow,
             extras: this.extras
           };
-
-          // 1) always keep a local copy — never lose data, works offline
           const all = JSON.parse(localStorage.getItem('dailyCheckins') || '[]');
           all.push(entry);
           localStorage.setItem('dailyCheckins', JSON.stringify(all));
-
-          // 2) if a Sheet URL is set, mirror it to Google Sheets (fire-and-forget)
           if (this.sheetUrl) {
             fetch(this.sheetUrl, {
-              method: 'POST',
-              mode: 'no-cors',
+              method: 'POST', mode: 'no-cors',
               headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-              body: JSON.stringify(entry)
-            }).catch(() => {}); // local copy already saved, so a miss is harmless
+              body: JSON.stringify({ kind: 'checkin', ...entry })
+            }).catch(() => {});
           }
         },
 
         submit() { this.save(); this.screen = 'done'; },
+
+        // ----- pet quick-log methods -----
+        logPet(t) {
+          const ev = {
+            id: Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+            time: new Date().toISOString(),
+            type: t.key, label: t.label, emoji: t.emoji, note: ''
+          };
+          this.petEvents.unshift(ev);
+          this.savePetLog();
+          if (this.sheetUrl) {
+            fetch(this.sheetUrl, {
+              method: 'POST', mode: 'no-cors',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify({ kind: 'pet', ...ev })
+            }).catch(() => {});
+          }
+        },
+        savePetLog() { localStorage.setItem('petLog', JSON.stringify(this.petEvents)); },
+        todaysPet() {
+          const today = new Date().toDateString();
+          return this.petEvents.filter(e => new Date(e.time).toDateString() === today);
+        },
+        petTime(t) { return new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); },
+        deletePet(id) { this.petEvents = this.petEvents.filter(e => e.id !== id); this.savePetLog(); },
 
         copyPrompt() {
           if (navigator.clipboard) navigator.clipboard.writeText(this.escapePrompt);
