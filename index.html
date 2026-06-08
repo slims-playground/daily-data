@@ -250,9 +250,9 @@
   <script>
     function checkin() {
       return {
-        // ▼▼▼ PASTE YOUR GOOGLE SHEET WEB-APP URL BETWEEN THE QUOTES ▼▼▼
-        sheetUrl: '',
-        // ▲▲▲ leave blank and it just saves in this browser ▲▲▲
+        // Google Sheet endpoint + matching secret (must equal SECRET in the Apps Script)
+        sheetUrl: 'https://script.google.com/macros/s/AKfycbz0M_2dFTpMeFV5kjT99kj00sLV_-597imCb9DhZ1qtWiu31sCWgHOkK8ys6j2fsH3O/exec',
+        apiSecret: 'arsenal-9Fq2Lm7Xv',
 
         // ▼ set your pet's name here ▼
         petName: 'Pet',
@@ -334,7 +334,7 @@ saccharine. Treat me like a competent adult having a hard moment.`,
             fetch(this.sheetUrl, {
               method: 'POST', mode: 'no-cors',
               headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-              body: JSON.stringify({ kind: 'checkin', ...entry })
+              body: JSON.stringify({ kind: 'checkin', secret: this.apiSecret, ...entry })
             }).catch(() => {});
           }
         },
@@ -354,7 +354,7 @@ saccharine. Treat me like a competent adult having a hard moment.`,
             fetch(this.sheetUrl, {
               method: 'POST', mode: 'no-cors',
               headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-              body: JSON.stringify({ kind: 'pet', ...ev })
+              body: JSON.stringify({ kind: 'pet', secret: this.apiSecret, ...ev })
             }).catch(() => {});
           }
         },
