@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Helper Screening</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: { extend: { fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui'] } } }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+  <style>
+    [x-cloak] { display: none !important; }
+    html { -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+      background: radial-gradient(130% 70% at 50% -10%, #240407 0%, #0a0a0b 55%) fixed;
+    }
+    .pop { animation: pop .25s ease-out; }
+    @keyframes pop { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  </style>
+</head>
+
+<body class="bg-[#0a0a0b] text-zinc-100 antialiased">
+  <div x-data="screener()" x-cloak class="min-h-screen w-full flex items-start justify-center p-4 sm:p-6">
+    <div class="w-full max-w-md pb-16">
+
+      <p class="text-center text-sm text-zinc-500 mb-5" x-text="today()"></p>
+
+      <!-- ================= START ================= -->
+      <div x-show="screen === 'start'" x-transition.opacity class="space-y-4">
+        <h1 class="text-2xl font-semibold text-center">Helper screening</h1>
+        <p class="text-sm text-zinc-400 text-center">I'm immunocompromised, so I ask everyone a few health questions. It's not personal — thank you for helping.</p>
+
+        <input x-model="helper" type="text" placeholder="Helper's name"
+          class="w-full rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 placeholder-zinc-600 px-4 py-3 focus:border-[#EF0107] focus:ring-2 focus:ring-[#EF0107]/30 outline-none transition" />
+
+        <button @click="begin('quick')"
+          class="w-full text-left rounded-2xl border border-[#EF0107]/50 bg-[#EF0107]/10 hover:bg-[#EF0107]/20 active:scale-[.98] transition p-5 flex items-center gap-4">
+          <span class="text-3xl">🚑</span>
+          <span>
+            <span class="block font-semibold">Emergency — quick screen</span>
+            <span class="block text-sm text-zinc-400">ER ride, urgent pickup · 5 questions</span>
+          </span>
+        </button>
+
+        <button @click="begin('full')"
+          class="w-full text-left rounded-2xl border border-zinc-800 bg-zinc-900/60 hover:border-[#EF0107]/70 hover:bg-zinc-900 active:scale-[.98] transition p-5 flex items-center gap-4">
+          <span class="text-3xl">📋</span>
+          <span>
+            <span class="block font-semibold">Planned help — full intake</span>
+            <span class="block text-sm text-zinc-400">errands, visits, appointments · 22 questions</span>
+          </span>
+        </button>
+
+        <p class="text-xs text-zinc-600 text-center pt-2">Answers stay on this phone only. Nothing is sent anywhere.</p>
+      </div>
+
+      <!-- ================= QUESTIONS ================= -->
+      <div x-show="screen === 'questions'" x-transition.opacity class="space-y-6">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xl font-semibold" x-text="mode === 'quick' ? '🚑 Quick screen' : '📋 Full intake'"></h2>
+          <button @click="screen='start'" class="text-sm text-zinc-500 hover:text-zinc-300 transition">← back</button>
+        </div>
+
+        <div x-show="mode === 'quick'" class="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 text-sm text-zinc-400">
+          If no safe helper is available fast, call 911 or a rideshare and mask — getting care comes first.
+        </div>
+
+        <template x-for="sec in sections()" :key="sec.title">
+          <div class="space-y-3">
+            <h3 class="text-sm font-medium uppercase tracking-wide text-zinc-500" x-text="sec.title"></h3>
+            <template x-for="q in sec.qs" :key="q.id">
+              <div class="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4 space-y-3">
+                <p class="text-zinc-200 leading-snug" x-text="q.text"></p>
+                <div class="flex gap-2">
+                  <template x-for="opt in ['Yes','No']" :key="q.id+opt">
+                    <button @click="answers[q.id] = opt"
+                      :class="answers[q.id] === opt
+                        ? (isFlag(q, opt) ? 'bg-[#EF0107] text-white border-[#EF0107]' : 'bg-emerald-600 text-white border-emerald-600')
+                        : 'bg-zinc-900 text-zinc-400 border-zinc-700 hover:border-zinc-500'"
+                      class="flex-1 h-11 rounded-xl border font-semibold active:scale-95 transition"
+                      x-text="opt"></button>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <p x-show="unanswered() > 0" class="text-sm text-zinc-500 text-center" x-text="unanswered() + ' left to answer'"></p>
+
+        <button @click="screen='result'" :disabled="unanswered() > 0"
+          :class="unanswered() > 0 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-[#ff1a20] active:scale-[.98]'"
+          class="w-full bg-[#EF0107] text-white font-semibold rounded-2xl py-4 text-lg transition shadow-lg shadow-[#EF0107]/20">
+          See result →
+        </button>
+      </div>
+
+      <!-- ================= RESULT ================= -->
+      <div x-show="screen === 'result'" x-transition.opacity class="space-y-5 pop">
+        <div class="rounded-2xl p-6 text-center border"
+          :class="{
+            'bg-emerald-950/50 border-emerald-700': result().level === 'green',
+            'bg-amber-950/50 border-amber-600': result().level === 'yellow',
+            'bg-red-950/60 border-[#EF0107]': result().level === 'red'
+          }">
+          <div class="text-5xl mb-2" x-text="{green:'🟢', yellow:'🟡', red:'🔴'}[result().level]"></div>
+          <h2 class="text-2xl font-semibold" x-text="{green:'Go ahead', yellow:'Go with precautions', red:'Find a backup'}[result().level]"></h2>
+          <p class="text-sm text-zinc-400 mt-1" x-text="(helper || 'Helper') + ' · ' + new Date().toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})"></p>
+        </div>
+
+        <div x-show="result().flags.length" class="space-y-2">
+          <h3 class="text-sm font-medium text-zinc-400">Flagged</h3>
+          <template x-for="f in result().flags" :key="f.text">
+            <div class="flex gap-2 text-sm">
+              <span x-text="f.sev === 'red' ? '🔴' : '🟡'"></span>
+              <span class="text-zinc-300" x-text="f.text + ' — ' + f.ans"></span>
+            </div>
+          </template>
+        </div>
+
+        <div class="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4 space-y-2">
+          <h3 class="font-medium">What to do</h3>
+          <ul class="text-sm text-zinc-300 space-y-1.5 list-disc pl-5">
+            <template x-for="s in steps()" :key="s"><li x-text="s"></li></template>
+          </ul>
+        </div>
+
+        <div x-show="mode === 'quick' && result().level === 'red'" class="rounded-xl border border-[#EF0107]/50 bg-[#EF0107]/10 p-4 text-sm text-zinc-200">
+          In a true emergency, a red helper is still better than no care: both mask, windows open, sit apart (me in the back seat, passenger side), and tell ER staff I'm immunocompromised.
+        </div>
+
+        <div class="flex gap-2">
+          <button @click="copySummary()" class="flex-1 border border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 rounded-xl py-3 font-medium transition"
+            x-text="copied ? 'Copied ✓' : 'Copy summary'"></button>
+          <button @click="reset()" class="flex-1 bg-[#EF0107] hover:bg-[#ff1a20] text-white rounded-xl py-3 font-semibold transition">New helper</button>
+        </div>
+        <button @click="screen='questions'" class="text-sm text-zinc-500 hover:text-zinc-300 transition block w-full">← change answers</button>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // flag: which answer is the risky one. sev: how serious that answer is.
+    const QUICK = [
+      { title: 'Last 48 hours – 10 days', qs: [
+        { id: 'q1', text: 'In the last 48 hours, have you had a fever, chills, cough, sore throat, runny nose, vomiting, or diarrhea?', flag: 'Yes', sev: 'red' },
+        { id: 'q2', text: 'Has anyone you live with or spent time with been sick in the past week?', flag: 'Yes', sev: 'yellow' },
+        { id: 'q3', text: 'Tested positive for, or been exposed to, COVID, flu, RSV, strep, or a stomach bug in the past 10 days?', flag: 'Yes', sev: 'red' },
+        { id: 'q4', text: 'Been around chickenpox, shingles, or measles recently?', flag: 'Yes', sev: 'red' },
+        { id: 'q5', text: 'Can you wear a mask (N95/KN95 if you have one) and keep the car windows cracked?', flag: 'No', sev: 'yellow' }
+      ]}
+    ];
+
+    const FULL = [
+      { title: 'Symptoms — you, last 3 days', qs: [
+        { id: 's1', text: 'Fever (100.0°F or higher), chills, or feeling feverish?', flag: 'Yes', sev: 'red' },
+        { id: 's2', text: 'Cough, sore throat, congestion, or runny nose?', flag: 'Yes', sev: 'red' },
+        { id: 's3', text: 'Nausea, vomiting, or diarrhea in the last 48 hours?', flag: 'Yes', sev: 'red' },
+        { id: 's4', text: 'Unusual tiredness, body aches, headache, or loss of taste/smell?', flag: 'Yes', sev: 'red' },
+        { id: 's5', text: 'Any rash, cold sore, pink eye, or open skin infection?', flag: 'Yes', sev: 'red' },
+        { id: 's6', text: 'Taking a fever reducer (Tylenol, Advil) that could hide a fever?', flag: 'Yes', sev: 'yellow' }
+      ]},
+      { title: 'Exposures — last 10 days', qs: [
+        { id: 'e1', text: 'Positive test or known exposure to COVID, flu, or RSV?', flag: 'Yes', sev: 'red' },
+        { id: 'e2', text: 'Exposure to strep, a stomach bug, or food poisoning?', flag: 'Yes', sev: 'red' },
+        { id: 'e3', text: 'Exposure to chickenpox, shingles, measles, TB, or whooping cough?', flag: 'Yes', sev: 'red' },
+        { id: 'e4', text: 'Recent travel, a flight, or a large crowded event?', flag: 'Yes', sev: 'yellow' },
+        { id: 'e5', text: 'Work in a hospital, clinic, nursing home, school, or daycare?', flag: 'Yes', sev: 'yellow' }
+      ]},
+      { title: 'Household', qs: [
+        { id: 'h1', text: 'Is anyone at home sick right now?', flag: 'Yes', sev: 'yellow' },
+        { id: 'h2', text: 'Do you live with young children, especially in daycare or school?', flag: 'Yes', sev: 'yellow' },
+        { id: 'h3', text: 'Has anyone at home had a live vaccine in the last 6 weeks (nasal flu spray, chickenpox, infant rotavirus)?', flag: 'Yes', sev: 'yellow' }
+      ]},
+      { title: 'Vaccines and testing', qs: [
+        { id: 'v1', text: "Have you had this season's flu shot?", flag: 'No', sev: 'yellow' },
+        { id: 'v2', text: 'Are you up to date on the current COVID vaccine?', flag: 'No', sev: 'yellow' },
+        { id: 'v3', text: 'Up to date on whooping cough (Tdap) and measles (MMR)?', flag: 'No', sev: 'yellow' },
+        { id: 'v4', text: 'Willing to take a rapid COVID test the day of?', flag: 'No', sev: 'yellow' }
+      ]},
+      { title: 'Precautions', qs: [
+        { id: 'p1', text: 'Willing to wear a well-fitted N95/KN95 the whole time?', flag: 'No', sev: 'yellow' },
+        { id: 'p2', text: 'Will you wash or sanitize your hands when you arrive?', flag: 'No', sev: 'yellow' },
+        { id: 'p3', text: 'OK with open windows or meeting outdoors when possible?', flag: 'No', sev: 'yellow' },
+        { id: 'p4', text: "Will you tell me if you start feeling sick, even after we've met?", flag: 'No', sev: 'yellow' }
+      ]}
+    ];
+
+    function screener() {
+      return {
+        screen: 'start',
+        mode: null,
+        helper: '',
+        answers: {},
+        copied: false,
+
+        today() {
+          return new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+        },
+        begin(m) { this.mode = m; this.answers = {}; this.screen = 'questions'; window.scrollTo(0, 0); },
+        sections() { return this.mode === 'quick' ? QUICK : this.mode === 'full' ? FULL : []; },
+        allQs() { return this.sections().flatMap(s => s.qs); },
+        isFlag(q, ans) { return q.flag === ans; },
+        unanswered() { return this.allQs().filter(q => !this.answers[q.id]).length; },
+
+        result() {
+          const flags = this.allQs()
+            .filter(q => this.answers[q.id] === q.flag)
+            .map(q => ({ text: q.text, ans: this.answers[q.id], sev: q.sev }));
+          const level = flags.some(f => f.sev === 'red') ? 'red' : flags.length ? 'yellow' : 'green';
+          return { level, flags };
+        },
+
+        steps() {
+          const lvl = this.result().level;
+          if (lvl === 'green') return [
+            'Accept the help.',
+            'Hand hygiene on arrival; mask in close spaces like a car.'
+          ];
+          if (lvl === 'yellow') return [
+            'Helper takes a rapid COVID test first, if there is time.',
+            'Helper wears an N95/KN95 the whole time; I mask too.',
+            'Windows down in the car, or meet outdoors.',
+            'Keep contact short and keep distance where possible.'
+          ];
+          return [
+            'Thank them and call the next person on my backup list.',
+            'No backup in time: rideshare or taxi (I mask, windows down).',
+            'Emergency: call 911.'
+          ];
+        },
+
+        copySummary() {
+          const r = this.result();
+          const label = { green: 'GREEN – go ahead', yellow: 'YELLOW – go with precautions', red: 'RED – find a backup' }[r.level];
+          const lines = [
+            `Helper screening (${this.mode === 'quick' ? 'quick' : 'full'}) — ${this.helper || 'Helper'}`,
+            new Date().toLocaleString(),
+            `Result: ${label}`,
+            ...r.flags.map(f => `• ${f.text} — ${f.ans}`)
+          ];
+          const text = lines.join('\n');
+          if (navigator.clipboard) navigator.clipboard.writeText(text).catch(() => {});
+          this.copied = true;
+          setTimeout(() => this.copied = false, 1500);
+        },
+
+        reset() {
+          this.screen = 'start'; this.mode = null; this.helper = ''; this.answers = {};
+          window.scrollTo(0, 0);
+        }
+      };
+    }
+  </script>
+</body>
+</html>
